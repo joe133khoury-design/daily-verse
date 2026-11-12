@@ -1,0 +1,278 @@
+package com.alain.dailyverse;
+
+import android.app.Activity;
+import android.app.TimePickerDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.Switch;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class MainActivity extends Activity {
+
+    private static final int BG = 0xFF0B1224;
+    private static final int CARD = 0xFF16203A;
+    private static final int GOLD = 0xFFE8C26A;
+
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final Handler main = new Handler(Looper.getMainLooper());
+
+    private ImageView preview;
+    private TextView verseText;
+    private Button timeButton;
+    private Button styleButton;
+    private Bitmap shownBitmap;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        setContentView(buildUi());
+        Scheduler.schedule(this);
+        refresh();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        worker.execute(() -> {
+            VerseManager.catchUpIfMissed(getApplicationContext());
+            main.post(this::refresh);
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        worker.shutdown();
+        super.onDestroy();
+    }
+
+    private int dp(float v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+
+    private View buildUi() {
+        SharedPreferences p = VerseManager.prefs(this);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(BG);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(20), dp(24), dp(20), dp(32));
+        scroll.addView(col);
+
+        TextView title = new TextView(this);
+        title.setText("Daily Verse");
+        title.setTextColor(GOLD);
+        title.setTextSize(28);
+        title.setTypeface(Typeface.create(Typeface.SERIF, Typeface.BOLD));
+        title.setGravity(Gravity.CENTER);
+        col.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("A new Bible verse on your lock screen every morning");
+        subtitle.setTextColor(0xFFB8C2D9);
+        subtitle.setTextSize(14);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, dp(4), 0, dp(16));
+        col.addView(subtitle);
+
+        // Preview of the lock screen
+        preview = new ImageView(this);
+        preview.setAdjustViewBounds(true);
+        preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, (int) (getResources().getDisplayMetrics().heightPixels * 0.5f));
+        col.addView(preview, plp);
+
+        verseText = new TextView(this);
+        verseText.setTextColor(0xFFDDE3F0);
+        verseText.setTextSize(13);
+        verseText.setGravity(Gravity.CENTER);
+        verseText.setPadding(dp(8), dp(10), dp(8), dp(6));
+        col.addView(verseText);
+
+        // Previous / Next
+        LinearLayout nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
+        Button prev = smallButton("◀  Previous");
+        Button next = smallButton("Next  ▶");
+        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        half.setMargins(dp(4), dp(4), dp(4), dp(4));
+        nav.addView(prev, half);
+        nav.addView(next, new LinearLayout.LayoutParams(half));
+        col.addView(nav);
+        prev.setOnClickListener(v -> { VerseManager.setIndex(this, VerseManager.currentIndex(this) - 1); refresh(); });
+        next.setOnClickListener(v -> { VerseManager.setIndex(this, VerseManager.currentIndex(this) + 1); refresh(); });
+
+        Button apply = new Button(this);
+        apply.setText("Set on lock screen now");
+        apply.setAllCaps(false);
+        apply.setTextSize(17);
+        apply.setTextColor(0xFF1B1405);
+        apply.setTypeface(Typeface.DEFAULT_BOLD);
+        apply.setBackground(rounded(GOLD));
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(54));
+        alp.setMargins(dp(4), dp(10), dp(4), dp(18));
+        col.addView(apply, alp);
+        apply.setOnClickListener(v -> applyNow());
+
+        // Settings card
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(16), dp(12), dp(16), dp(12));
+        card.setBackground(rounded(CARD));
+        col.addView(card);
+
+        Switch daily = new Switch(this);
+        daily.setText("New verse every morning");
+        daily.setTextColor(Color.WHITE);
+        daily.setTextSize(16);
+        daily.setChecked(p.getBoolean(VerseManager.K_ENABLED, true));
+        daily.setPadding(0, dp(8), 0, dp(8));
+        card.addView(daily);
+        daily.setOnCheckedChangeListener((b, on) -> {
+            VerseManager.prefs(this).edit().putBoolean(VerseManager.K_ENABLED, on).apply();
+            Scheduler.schedule(this);
+            toast(on ? "Daily verse turned on" : "Daily verse turned off");
+        });
+
+        timeButton = smallButton("");
+        card.addView(timeButton, fullWidth());
+        timeButton.setOnClickListener(v -> pickTime());
+
+        styleButton = smallButton("");
+        card.addView(styleButton, fullWidth());
+        styleButton.setOnClickListener(v -> {
+            SharedPreferences sp = VerseManager.prefs(this);
+            int s = sp.getInt(VerseManager.K_STYLE, -1) + 1;
+            if (s >= VerseManager.STYLE_NAMES.length) s = -1;
+            sp.edit().putInt(VerseManager.K_STYLE, s).apply();
+            refresh();
+        });
+
+        CheckBox home = new CheckBox(this);
+        home.setText("Also put it on the home screen");
+        home.setTextColor(Color.WHITE);
+        home.setTextSize(15);
+        home.setChecked(p.getBoolean(VerseManager.K_HOME, false));
+        home.setPadding(dp(4), dp(10), 0, dp(10));
+        card.addView(home);
+        home.setOnCheckedChangeListener((b, on) ->
+            VerseManager.prefs(this).edit().putBoolean(VerseManager.K_HOME, on).apply());
+
+        Button share = smallButton("Share this verse");
+        LinearLayout.LayoutParams slp = fullWidth();
+        slp.topMargin = dp(16);
+        col.addView(share, slp);
+        share.setOnClickListener(v -> {
+            int i = VerseManager.currentIndex(this);
+            Intent s = new Intent(Intent.ACTION_SEND);
+            s.setType("text/plain");
+            s.putExtra(Intent.EXTRA_TEXT, "\"" + Verses.text(i) + "\"\n— " + Verses.ref(i));
+            startActivity(Intent.createChooser(s, "Share verse"));
+        });
+
+        TextView footer = new TextView(this);
+        footer.setText("Scripture: King James Version · " + Verses.count() + " verses");
+        footer.setTextColor(0xFF6F7A94);
+        footer.setTextSize(12);
+        footer.setGravity(Gravity.CENTER);
+        footer.setPadding(0, dp(18), 0, 0);
+        col.addView(footer);
+
+        return scroll;
+    }
+
+    private LinearLayout.LayoutParams fullWidth() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, dp(4), 0, dp(4));
+        return lp;
+    }
+
+    private Button smallButton(String text) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setAllCaps(false);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(15);
+        b.setBackground(rounded(0xFF24304F));
+        b.setPadding(dp(12), dp(10), dp(12), dp(10));
+        return b;
+    }
+
+    private GradientDrawable rounded(int color) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(14));
+        return d;
+    }
+
+    private void refresh() {
+        SharedPreferences p = VerseManager.prefs(this);
+        int i = VerseManager.currentIndex(this);
+        verseText.setText(Verses.ref(i) + "   ·   verse " + (i + 1) + " of " + Verses.count());
+        timeButton.setText(String.format(Locale.getDefault(), "Change every morning at  %02d:%02d",
+            p.getInt(VerseManager.K_HOUR, 6), p.getInt(VerseManager.K_MINUTE, 0)));
+        int s = p.getInt(VerseManager.K_STYLE, -1);
+        styleButton.setText("Background:  " + (s < 0 ? "Auto (changes daily)" : VerseManager.STYLE_NAMES[s]));
+
+        worker.execute(() -> {
+            int[] size = VerseManager.screenSize(getApplicationContext());
+            // Render at half size for the preview — same look, less memory
+            Bitmap full = VerseManager.render(getApplicationContext(), i);
+            Bitmap small = Bitmap.createScaledBitmap(full, size[0] / 2, size[1] / 2, true);
+            full.recycle();
+            main.post(() -> {
+                if (shownBitmap != null) preview.setImageDrawable(null);
+                shownBitmap = small;
+                preview.setImageBitmap(small);
+            });
+        });
+    }
+
+    private void applyNow() {
+        final int i = VerseManager.currentIndex(this);
+        toast("Setting your lock screen…");
+        worker.execute(() -> {
+            boolean ok = VerseManager.applyIndex(getApplicationContext(), i);
+            if (ok) VerseManager.markAppliedToday(getApplicationContext());
+            main.post(() -> toast(ok ? "Done! Lock your phone to see it." : "Couldn't set the wallpaper on this phone."));
+        });
+    }
+
+    private void pickTime() {
+        SharedPreferences p = VerseManager.prefs(this);
+        new TimePickerDialog(this, (view, hour, minute) -> {
+            p.edit().putInt(VerseManager.K_HOUR, hour).putInt(VerseManager.K_MINUTE, minute).apply();
+            Scheduler.schedule(this);
+            refresh();
+            toast(String.format(Locale.getDefault(), "New verse every day at %02d:%02d", hour, minute));
+        }, p.getInt(VerseManager.K_HOUR, 6), p.getInt(VerseManager.K_MINUTE, 0), true).show();
+    }
+
+    private void toast(String s) {
+        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+    }
+}
