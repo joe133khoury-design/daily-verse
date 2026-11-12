@@ -14,7 +14,6 @@ import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -38,7 +37,8 @@ public class MainActivity extends Activity {
     private ImageView preview;
     private TextView verseText;
     private Button timeButton;
-    private Button styleButton;
+    private Button photoButton;
+    private static final int PICK_PHOTO = 7;
     private Bitmap shownBitmap;
 
     @Override
@@ -89,12 +89,21 @@ public class MainActivity extends Activity {
         col.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("A new Bible verse on your lock screen every morning");
+        subtitle.setText("A verse about Jesus Christ on your own lock screen wallpaper, new every morning");
         subtitle.setTextColor(0xFFB8C2D9);
         subtitle.setTextSize(14);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(0, dp(4), 0, dp(16));
         col.addView(subtitle);
+
+        photoButton = new Button(this);
+        photoButton.setAllCaps(false);
+        photoButton.setTextSize(16);
+        photoButton.setTypeface(Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams pblp = fullWidth();
+        pblp.bottomMargin = dp(14);
+        col.addView(photoButton, pblp);
+        photoButton.setOnClickListener(v -> pickPhoto());
 
         // Preview of the lock screen
         preview = new ImageView(this);
@@ -161,25 +170,15 @@ public class MainActivity extends Activity {
         card.addView(timeButton, fullWidth());
         timeButton.setOnClickListener(v -> pickTime());
 
-        styleButton = smallButton("");
-        card.addView(styleButton, fullWidth());
-        styleButton.setOnClickListener(v -> {
-            SharedPreferences sp = VerseManager.prefs(this);
-            int s = sp.getInt(VerseManager.K_STYLE, -1) + 1;
-            if (s >= VerseManager.STYLE_NAMES.length) s = -1;
-            sp.edit().putInt(VerseManager.K_STYLE, s).apply();
-            refresh();
+        Button restore = smallButton("Remove verse (show my photo only)");
+        card.addView(restore, fullWidth());
+        restore.setOnClickListener(v -> {
+            daily.setChecked(false);
+            worker.execute(() -> {
+                boolean ok = VerseManager.restorePhoto(getApplicationContext());
+                main.post(() -> toast(ok ? "Your photo is back without a verse" : "Choose your wallpaper photo first"));
+            });
         });
-
-        CheckBox home = new CheckBox(this);
-        home.setText("Also put it on the home screen");
-        home.setTextColor(Color.WHITE);
-        home.setTextSize(15);
-        home.setChecked(p.getBoolean(VerseManager.K_HOME, false));
-        home.setPadding(dp(4), dp(10), 0, dp(10));
-        card.addView(home);
-        home.setOnCheckedChangeListener((b, on) ->
-            VerseManager.prefs(this).edit().putBoolean(VerseManager.K_HOME, on).apply());
 
         Button share = smallButton("Share this verse");
         LinearLayout.LayoutParams slp = fullWidth();
@@ -235,8 +234,10 @@ public class MainActivity extends Activity {
         verseText.setText(Verses.ref(i) + "   ·   verse " + (i + 1) + " of " + Verses.count());
         timeButton.setText(String.format(Locale.getDefault(), "Change every morning at  %02d:%02d",
             p.getInt(VerseManager.K_HOUR, 6), p.getInt(VerseManager.K_MINUTE, 0)));
-        int s = p.getInt(VerseManager.K_STYLE, -1);
-        styleButton.setText("Background:  " + (s < 0 ? "Auto (changes daily)" : VerseManager.STYLE_NAMES[s]));
+        boolean has = VerseManager.hasPhoto(this);
+        photoButton.setText(has ? "Change my wallpaper photo" : "Step 1: Choose my wallpaper photo");
+        photoButton.setTextColor(has ? Color.WHITE : 0xFF1B1405);
+        photoButton.setBackground(rounded(has ? 0xFF24304F : GOLD));
 
         worker.execute(() -> {
             int[] size = VerseManager.screenSize(getApplicationContext());
@@ -254,11 +255,38 @@ public class MainActivity extends Activity {
 
     private void applyNow() {
         final int i = VerseManager.currentIndex(this);
+        if (!VerseManager.hasPhoto(this)) {
+            toast("First choose your wallpaper photo");
+            pickPhoto();
+            return;
+        }
         toast("Setting your lock screen…");
         worker.execute(() -> {
             boolean ok = VerseManager.applyIndex(getApplicationContext(), i);
             if (ok) VerseManager.markAppliedToday(getApplicationContext());
             main.post(() -> toast(ok ? "Done! Lock your phone to see it." : "Couldn't set the wallpaper on this phone."));
+        });
+    }
+
+    private void pickPhoto() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("image/*");
+        startActivityForResult(i, PICK_PHOTO);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != PICK_PHOTO || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        final android.net.Uri uri = data.getData();
+        toast("Saving your photo…");
+        worker.execute(() -> {
+            boolean ok = VerseManager.savePhoto(getApplicationContext(), uri);
+            main.post(() -> {
+                toast(ok ? "Photo saved. Tap \"Set on lock screen now\"" : "Couldn't open that photo, try another one");
+                refresh();
+            });
         });
     }
 

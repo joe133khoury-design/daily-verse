@@ -3,10 +3,11 @@
 Android app that puts a new Bible verse (King James Version) on your lock screen every morning.
 
 ## Features
-- 135 well-known verses, a new one each morning at the time you choose (default 06:00)
-- Live preview, Previous / Next, "Set on lock screen now"
-- 6 background styles, or Auto (changes daily)
-- Option to also set the home screen
+- 291 verses about Jesus Christ, copied word for word from the King James Version text
+  (generated from a complete KJV file, nothing paraphrased)
+- The verse is drawn on top of YOUR OWN wallpaper photo; the home screen is never changed
+- A new verse each morning at the time you choose (default 06:00)
+- Live preview, Previous / Next, "Set on lock screen now", "Remove verse" 
 - Share the verse as text
 - Survives restarts; catches up if the phone was off at the scheduled time
 
@@ -20,7 +21,8 @@ or run `./gradlew assembleRelease` (output: `app/build/outputs/apk/release/app-r
 ## Installing on the phone
 1. Download `DailyVerse.apk` and tap it.
 2. Allow "Install unknown apps" for your browser/file manager when asked.
-3. Open Daily Verse and tap **Set on lock screen now**.
+3. Open Daily Verse, tap **Choose my wallpaper photo** and pick your wallpaper picture.
+4. Tap **Set on lock screen now**.
 
 Tip: on Xiaomi / Huawei / some Samsung phones, set battery usage for Daily Verse to
 "No restrictions" so the morning change isn't blocked. If a morning is missed, the app
