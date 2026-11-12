@@ -3,8 +3,8 @@
 Android app that puts a new Bible verse (King James Version) on your lock screen every morning.
 
 ## Features
-- 291 verses about Jesus Christ, copied word for word from the King James Version text
-  (generated from a complete KJV file, nothing paraphrased)
+- 291 verses about Jesus Christ, copied word for word from the World English Bible (modern English, public domain)
+  (generated from the complete WEB text, nothing paraphrased)
 - The verse is drawn on top of YOUR OWN wallpaper photo; the home screen is never changed
 - A new verse each morning at the time you choose (default 06:00)
 - Live preview, Previous / Next, "Set on lock screen now", "Remove verse" 

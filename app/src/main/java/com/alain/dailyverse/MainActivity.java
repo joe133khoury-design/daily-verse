@@ -193,7 +193,7 @@ public class MainActivity extends Activity {
         });
 
         TextView footer = new TextView(this);
-        footer.setText("Scripture: King James Version · " + Verses.count() + " verses");
+        footer.setText("Scripture: World English Bible · " + Verses.count() + " verses");
         footer.setTextColor(0xFF6F7A94);
         footer.setTextSize(12);
         footer.setGravity(Gravity.CENTER);

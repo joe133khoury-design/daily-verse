@@ -263,7 +263,7 @@ public final class VerseManager {
         TextPaint tp = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         tp.setColor(0xFFFFFFFF);
         tp.setTypeface(Typeface.create(Typeface.SERIF, Typeface.NORMAL));
-        float textSize = w * 0.062f;
+        float textSize = w * 0.045f;
         int textWidth = (int) (w * 0.80f);
         StaticLayout layout;
         while (true) {
@@ -271,14 +271,14 @@ public final class VerseManager {
             tp.setShadowLayer(textSize * 0.35f, 0, 2, 0xCC000000);
             layout = StaticLayout.Builder.obtain(text, 0, text.length(), tp, textWidth)
                 .setAlignment(Layout.Alignment.ALIGN_CENTER)
-                .setLineSpacing(0f, 1.25f)
+                .setLineSpacing(0f, 1.2f)
                 .build();
-            if (layout.getHeight() <= h * 0.42f || textSize < w * 0.032f) break;
+            if (layout.getHeight() <= h * 0.30f || textSize < w * 0.030f) break;
             textSize *= 0.93f;
         }
 
-        float refSize = Math.max(textSize * 0.62f, w * 0.032f);
-        float crossSize = textSize * 1.1f;
+        float refSize = Math.max(textSize * 0.68f, w * 0.026f);
+        float crossSize = textSize * 0.9f;
         float gap = textSize * 0.9f;
         float block = crossSize + gap + layout.getHeight() + gap + refSize * 1.4f;
         // Centred a little below the middle so the lock-screen clock stays clear
