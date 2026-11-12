@@ -3,7 +3,7 @@
 Android app that puts a new Bible verse (King James Version) on your lock screen every morning.
 
 ## Features
-- 136 well-known verses, a new one each morning at the time you choose (default 06:00)
+- 135 well-known verses, a new one each morning at the time you choose (default 06:00)
 - Live preview, Previous / Next, "Set on lock screen now"
 - 6 background styles, or Auto (changes daily)
 - Option to also set the home screen
