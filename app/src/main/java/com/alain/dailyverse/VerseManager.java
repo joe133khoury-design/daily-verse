@@ -39,6 +39,7 @@ public final class VerseManager {
     static final String K_MINUTE = "minute";
     static final String K_ENABLED = "enabled";
     static final String K_HOME = "also_home";
+    static final String K_LAST_AUTO = "last_auto";
     static final String K_STYLE = "style"; // -1 = auto (changes every day)
 
     /** {name, top colour, bottom colour, accent colour} */
@@ -96,7 +97,7 @@ public final class VerseManager {
         if (p.getInt(K_LAST_DAY, 0) != 0) index = Math.floorMod(index + 1, Verses.count());
         p.edit().putInt(K_INDEX, index).apply();
         if (applyIndex(c, index)) {
-            p.edit().putInt(K_LAST_DAY, today).apply();
+            p.edit().putInt(K_LAST_DAY, today).putLong(K_LAST_AUTO, System.currentTimeMillis()).apply();
             return true;
         }
         return false;

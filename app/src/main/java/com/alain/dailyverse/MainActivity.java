@@ -8,7 +8,11 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
@@ -21,6 +25,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -38,6 +44,8 @@ public class MainActivity extends Activity {
     private TextView verseText;
     private Button timeButton;
     private Button photoButton;
+    private TextView statusText;
+    private Button batteryButton;
     private static final int PICK_PHOTO = 7;
     private Bitmap shownBitmap;
 
@@ -49,6 +57,12 @@ public class MainActivity extends Activity {
         setContentView(buildUi());
         Scheduler.schedule(this);
         refresh();
+        // Ask once for background permission — without it Vivo/Xiaomi phones block the morning change
+        SharedPreferences sp = VerseManager.prefs(this);
+        if (!isBatteryExempt() && !sp.getBoolean("asked_battery", false)) {
+            sp.edit().putBoolean("asked_battery", true).apply();
+            askBatteryExemption();
+        }
     }
 
     @Override
@@ -180,6 +194,32 @@ public class MainActivity extends Activity {
             });
         });
 
+        statusText = new TextView(this);
+        statusText.setTextColor(0xFFB8C2D9);
+        statusText.setTextSize(13);
+        statusText.setPadding(dp(4), dp(12), dp(4), dp(4));
+        card.addView(statusText);
+
+        // Vivo / Xiaomi / Huawei stop apps in the background. These two buttons let the morning change run.
+        TextView bgTitle = new TextView(this);
+        bgTitle.setText("Important for the automatic morning change:");
+        bgTitle.setTextColor(GOLD);
+        bgTitle.setTextSize(14);
+        bgTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        bgTitle.setPadding(0, dp(18), 0, dp(4));
+        col.addView(bgTitle);
+
+        batteryButton = smallButton("1. Allow running in background (battery)");
+        col.addView(batteryButton, fullWidth());
+        batteryButton.setOnClickListener(v -> askBatteryExemption());
+
+        Button appSettings = smallButton("2. Open app settings → allow Auto-start / High background power use");
+        col.addView(appSettings, fullWidth());
+        appSettings.setOnClickListener(v -> {
+            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()));
+            startActivity(i);
+        });
+
         Button share = smallButton("Share this verse");
         LinearLayout.LayoutParams slp = fullWidth();
         slp.topMargin = dp(16);
@@ -234,6 +274,14 @@ public class MainActivity extends Activity {
         verseText.setText(Verses.ref(i) + "   ·   verse " + (i + 1) + " of " + Verses.count());
         timeButton.setText(String.format(Locale.getDefault(), "Change every morning at  %02d:%02d",
             p.getInt(VerseManager.K_HOUR, 6), p.getInt(VerseManager.K_MINUTE, 0)));
+        long last = p.getLong(VerseManager.K_LAST_AUTO, 0);
+        statusText.setText(last == 0
+            ? "Last automatic change: not yet — it will happen at the time above"
+            : "Last automatic change: " + new SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(new Date(last)));
+        boolean exempt = isBatteryExempt();
+        batteryButton.setText(exempt ? "1. Background running allowed ✓" : "1. Allow running in background (battery)");
+        batteryButton.setBackground(rounded(exempt ? 0xFF1F4A33 : 0xFF7A2E2E));
+
         boolean has = VerseManager.hasPhoto(this);
         photoButton.setText(has ? "Change my wallpaper photo" : "Step 1: Choose my wallpaper photo");
         photoButton.setTextColor(has ? Color.WHITE : 0xFF1B1405);
@@ -266,6 +314,25 @@ public class MainActivity extends Activity {
             if (ok) VerseManager.markAppliedToday(getApplicationContext());
             main.post(() -> toast(ok ? "Done! Lock your phone to see it." : "Couldn't set the wallpaper on this phone."));
         });
+    }
+
+    private boolean isBatteryExempt() {
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+    }
+
+    private void askBatteryExemption() {
+        if (isBatteryExempt()) {
+            toast("Already allowed");
+            return;
+        }
+        try {
+            Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:" + getPackageName()));
+            startActivity(i);
+        } catch (Exception e) {
+            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        }
     }
 
     private void pickPhoto() {

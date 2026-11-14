@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowBackup="true"
@@ -25,6 +28,12 @@
         <receiver
             android:name=".DailyReceiver"
             android:exported="false" />
+
+        <!-- Hourly backup check in case the morning alarm was blocked -->
+        <service
+            android:name=".CatchUpJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- Re-schedules the daily alarm after a reboot or app update -->
         <receiver
